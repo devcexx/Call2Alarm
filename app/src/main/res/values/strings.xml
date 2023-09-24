@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">Call2Alarm</string>
+    <string name="pref_enable_call_handling_title">Enable call handling</string>
+    <string name="pref_enable_call_handling_subtitle">Controls call handling activation</string>
+    <string name="pref_handle_while_dnd_title">Intercept calls only in Do Not Disturb mode</string>
+    <string name="pref_start_on_boot_title">Start service on boot</string>
+    <string name="pref_start_on_boot_subtitle">Specifies that the foreground service should start right after booting the device. If unset, app needs to be manually started after every boot to start handling calls</string>
+    <string name="pref_ringtone_enable_vibration_title">Enable vibration</string>
+    <string name="pref_ringtone_honor_silent_modes_title">Honor silent and vibration mode</string>
+    <string name="pref_ringtone_honor_silent_modes_subtitle">Mute ringtone when the phone is on silent or vibration mode, regardless of the ringtone volume configuration</string>
+    <string name="pref_ringtone_volume_title">Ringtone volume</string>
+    <string name="pref_ringtone_custom_volume_title">Custom ringtone volume</string>
+    <string name="pref_ringtone_volume_option_use_alarm_volume">Use system alarm volume</string>
+    <string name="pref_ringtone_volume_option_use_ring_volume">Use system ring volume</string>
+    <string name="pref_ringtone_volume_option_use_custom_volume">Configure custom volume</string>
+    <string name="pref_group_general">General</string>
+    <string name="pref_group_global">Global Activation</string>
+    <string name="pref_group_ringtone">Ringtone</string>
+    <string name="call_interceptor_service_notification_title">Call2Alarm is handling calls</string>
+</resources>
