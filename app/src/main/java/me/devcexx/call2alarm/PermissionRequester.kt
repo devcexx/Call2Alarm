@@ -23,6 +23,7 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
+@Deprecated("Use accompanist permissions instead")
 class PermissionRequester(activity: ComponentActivity) {
     private var requestPermissionContinuation: Continuation<Boolean>? = null
     private val activityResultLauncher = activity.registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
