@@ -18,6 +18,7 @@
 package me.devcexx.call2alarm
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -35,7 +36,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.MultiplePermissionsState
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -43,9 +53,8 @@ import me.devcexx.call2alarm.preferences.RingtoneVolumeSetting
 import me.devcexx.call2alarm.preferences.ui.PreferenceSet
 import me.devcexx.call2alarm.ui.theme.Call2AlarmTheme
 
-
+@OptIn(ExperimentalPermissionsApi::class)
 class MainActivity : ComponentActivity() {
-    private val permissionRequester = PermissionRequester(this)
 
     private val interceptionEnabled by lazy { (app.preferences::interceptionEnabled).asState }
     private val interceptionOnlyInZenMode by lazy { (app.preferences::interceptionOnlyInZenMode).asState }
@@ -57,7 +66,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        ensureServiceInCorrectState()
         setContent {
             Call2AlarmTheme {
                 // A surface container using the 'background' color from the theme
@@ -65,7 +73,18 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    MainContent()
+
+                    val context = LocalContext.current
+
+                    val permissionsRequester =
+                        rememberMultiplePermissionsState(permissions = allPermissions.toList()) { permissions ->
+                            val hasPermissions =
+                                mandatoryPermissions.all { permissions[it] ?: false }
+                            context.onPermissionsProvided(hasPermissions)
+                        }
+
+                    CheckForPermissions(permissionsRequester)
+                    MainContent(permissionsRequester)
                 }
             }
         }
@@ -73,7 +92,7 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalFoundationApi::class)
     @Composable
-    fun MainContent() {
+    fun MainContent(permissionsRequest: MultiplePermissionsState) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -83,22 +102,24 @@ class MainActivity : ComponentActivity() {
             verticalArrangement = Arrangement.Top
         ) {
 
-            Preferences()
+            Preferences(permissionsRequest)
         }
     }
 
     @Composable
-    fun Preferences() {
+    fun Preferences(permissionsRequest: MultiplePermissionsState) {
         val (interceptionIsEnabled, _) = interceptionEnabled
         val (ringtoneVolumeSettingValue, _) = ringtoneVolumeSetting
         PreferenceSet(context = applicationContext) {
             PreferenceGroup(titleId = R.string.pref_group_global) {
+                val context = LocalContext.current
                 SwitchPreference(
                     titleId = R.string.pref_enable_call_handling_title,
                     subtitleId = R.string.pref_enable_call_handling_subtitle,
                     state = interceptionEnabled,
                     onChange = {
-                        ensureServiceInCorrectState()
+                        val hasPermissions = permissionsRequest.checkMandatoryPermissions()
+                        context.onPermissionsProvided(hasPermissions && it)
                     })
             }
 
@@ -144,24 +165,50 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun ensureServiceInCorrectState() {
-        GlobalScope.launch(Dispatchers.Main) {
-            logi(Thread.currentThread().toString())
-            val intent = Intent(baseContext, CallInterceptorService::class.java)
-            if (interceptionEnabled.value) {
-                if (permissionRequester.requestPermission(Manifest.permission.READ_PHONE_STATE) &&
-                    permissionRequester.requestPermission(Manifest.permission.ACCESS_NOTIFICATION_POLICY)) {
-                    permissionRequester.requestPermission(Manifest.permission.POST_NOTIFICATIONS) // Optional permission
-                    startForegroundService(intent)
-                } else {
-                    //interceptionEnabledState.value = false
-                    interceptionEnabled.value = false
-                    stopService(intent)
-                }
-            } else {
-                stopService(intent)
+
+    @Composable
+    private fun CheckForPermissions(permissionsRequester: MultiplePermissionsState) {
+        val context = LocalContext.current
+
+
+        val mandatoryPermissionsGranted by remember {
+            derivedStateOf {
+                permissionsRequester.checkMandatoryPermissions()
             }
         }
 
+        LaunchedEffect(mandatoryPermissionsGranted, context, interceptionEnabled.value, block = {
+            if (!mandatoryPermissionsGranted) {
+                permissionsRequester.launchMultiplePermissionRequest()
+            }
+            context.onPermissionsProvided(mandatoryPermissionsGranted && interceptionEnabled.value)
+        })
+    }
+
+    private fun MultiplePermissionsState.checkMandatoryPermissions(): Boolean {
+        val permissionMap =
+            this.permissions.associateBy { it.permission }
+        return mandatoryPermissions.all { permission ->
+            permissionMap[permission]?.status?.isGranted ?: false
+        }
+    }
+
+}
+
+
+private val mandatoryPermissions =
+    listOf(Manifest.permission.READ_PHONE_STATE, Manifest.permission.ACCESS_NOTIFICATION_POLICY)
+
+private val optionalPermissions = arrayOf(Manifest.permission.POST_NOTIFICATIONS)
+
+private val allPermissions = mandatoryPermissions + optionalPermissions
+
+
+private fun Context.onPermissionsProvided(hasPermissions: Boolean) {
+    val intent = Intent(this, CallInterceptorService::class.java)
+    if (hasPermissions) {
+        startForegroundService(intent)
+    } else {
+        stopService(intent)
     }
 }
